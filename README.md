@@ -5,6 +5,7 @@ This service deletes fragments in MediaHaven based on their fragment id. Deletes
 Run this project with the Mule Runtime and fill in the properties.
 
 On RabbitMQ, publish a message in the following format:
+### Request
 ```
 {
     "correlation_id": "abc123",

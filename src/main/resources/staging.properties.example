@@ -1,0 +1,16 @@
+rabbit.host=
+rabbit.port=
+rabbit.apiport=
+rabbit.vhost=
+rabbit.basepath=
+rabbit.username=
+rabbit.password=
+rabbit.requestqueue=
+rabbit.responseexchange=
+rabbit.responsequeue=
+
+mh.host=
+mh.port=
+mh.basepath=
+mh.username=
+mh.password=

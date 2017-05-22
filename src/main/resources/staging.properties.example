@@ -6,7 +6,6 @@ rabbit.basepath=
 rabbit.username=
 rabbit.password=
 rabbit.requestqueue=
-rabbit.responseexchange=
 rabbit.responsequeue=
 
 mh.host=

@@ -9,7 +9,8 @@ On RabbitMQ, publish a message in the following format:
 ```
 {
     "correlation_id": "abc123",
-    "fragment_id": "9a3cb699a3834160bde85d74fc18b02a60db8cef86c14219b94440fe6c7e82c6126ea398274e44b0be193d76aacec50"
+    "fragment_id": "9a3cb699a3834160bde85d74fc18b02a60db8cef86c14219b94440fe6c7e82c6126ea398274e44b0be193d76aacec50",
+    "cp": "someorganisation"
 }
 ```
 

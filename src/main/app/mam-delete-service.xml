@@ -18,7 +18,6 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
         	responseTimeout="10000"
         	connector-ref="InboundAMQPConnector"
         	doc:name="AMQP-0-9"/>
-        <logger message="Did some logic with the message" level="INFO" doc:name="Logger"/>
         <flow-ref name="parseMessageFlow" doc:name="parseMessageFlow"/>
         <flow-ref name="deleteCallFlow" doc:name="deleteCallFlow"/>
         <set-variable variableName="outcome" value="success" doc:name="Set outcome"/>
@@ -29,7 +28,7 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
                 <set-variable variableName="message" value="#[(flowVars.message == null || flowVars.message.isEmpty() ? &quot;&quot; : flowVars.message + &quot; - &quot;) +  (flowVars.correlation_id == null || flowVars.correlation_id.isEmpty() ? &quot;correlation_id was not filled in&quot; : &quot;&quot;)]" doc:name="Append 'correlation_id was not filled in' to message"/>
                 <set-variable variableName="message" value="#[(flowVars.message == null || flowVars.message.isEmpty() ? &quot;&quot; : flowVars.message + &quot; - &quot;) + (flowVars.fragment_id == null || flowVars.fragment_id.isEmpty() ? &quot;fragment_id was not filled in&quot; : &quot;&quot;)]" doc:name="Append 'fragment_id was not filled in' to message"/>
                 <flow-ref name="publishResponse" doc:name="publishResponse"/>
-                <logger level="ERROR" doc:name="Logger"/>
+                <logger level="ERROR" doc:name="The message was invalid" message="The message was invalid. #[flowVars.message]"/>
                 <amqp:acknowledge-message doc:name="AMQP-0-9 Acknowledge Message"/>
             </catch-exception-strategy>
             <catch-exception-strategy when="#[exception.causedBy(org.mule.api.routing.RoutingException)]" doc:name="Catch Exception Strategy">
@@ -44,23 +43,29 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
         <logger message="Received request: #[payload]" level="INFO" doc:name="Logger"/>
         <set-variable variableName="correlation_id" value="#[payload.correlation_id]" doc:name="Set correlation_id"/>
         <set-variable variableName="fragment_id" value="#[payload.fragment_id]" doc:name="Set fragment_id"/>
-        <message-filter throwOnUnaccepted="true" doc:name="Message">
+        <set-variable variableName="cp" value="#[payload.cp]" doc:name="Set cp"/>
+        <message-filter throwOnUnaccepted="true" doc:name="Throw error when request is invalid">
             <and-filter>
                 <expression-filter expression="#[flowVars.fragment_id != null &amp;&amp; !flowVars.fragment_id.isEmpty()]"/>
                 <expression-filter expression="#[flowVars.correlation_id != null &amp;&amp; !flowVars.correlation_id.isEmpty()]"/>
+                <expression-filter expression="#[flowVars.cp != null &amp;&amp; !flowVars.cp.isEmpty()]"/>
             </and-filter>
         </message-filter>
     </flow>
     <sub-flow name="deleteCallFlow">
+        <set-variable variableName="basic_credentials" value="#[&quot;viaa@&quot; + flowVars.cp + ':' + '${mh.password}']" doc:name="Set basic_credentials"/>
         <until-successful maxRetries="5" millisBetweenRetries="5000" failureExpression="#[message.inboundProperties.'http.status' == 200]" synchronous="true" doc:name="Until Successful">
             <http:request config-ref="HTTP_Request_Configuration" path="/#[flowVars.fragment_id]" method="DELETE" doc:name="HTTP">
+                <http:request-builder>
+                    <http:header headerName="Authorization" value="#['Basic ' + org.apache.commons.codec.binary.Base64.encodeBase64String(flowVars.basic_credentials.getBytes())]"/>
+                </http:request-builder>
                 <http:success-status-code-validator values="404"/>
             </http:request>
         </until-successful>
-        <logger message="Successfully deleted #[flowVars.fragment_id]" level="INFO" doc:name="Logger"/>
+        <logger message="Successfully deleted #[flowVars.fragment_id]" level="INFO" doc:name="Successfully deleted fragment_id"/>
     </sub-flow>
     <flow name="publishResponse" processingStrategy="synchronous">
-        <dw:transform-message doc:name="Transform Message">
+        <dw:transform-message doc:name="Make queue creation request">
             <dw:set-payload><![CDATA[%dw 1.0
 %output application/json
 ---
@@ -70,9 +75,8 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
 	"arguments":{}
 }]]></dw:set-payload>
         </dw:transform-message>
-        <http:request config-ref="RabbitMQAPI" path="/queues/#[java.net.URLEncoder.encode('${rabbit.vhost}', &quot;UTF-8&quot;)]/${rabbit.responsequeue}" method="PUT" doc:name="HTTP"/>
-        <logger level="INFO" doc:name="Logger"/>
-        <dw:transform-message doc:name="Transform Message">
+        <http:request config-ref="RabbitMQAPI" path="/queues/#[java.net.URLEncoder.encode('${rabbit.vhost}', &quot;UTF-8&quot;)]/${rabbit.responsequeue}" method="PUT" doc:name="Create queue"/>
+        <dw:transform-message doc:name="Make response">
             <dw:set-payload><![CDATA[%dw 1.0
 %output application/json
 ---
@@ -83,6 +87,6 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
 	message: flowVars.message when flowVars.message? otherwise ''
 }]]></dw:set-payload>
         </dw:transform-message>
-        <amqp:outbound-endpoint queueName="${rabbit.responsequeue}" responseTimeout="10000" connector-ref="OutboundAMQPConnector" doc:name="AMQP-0-9"/>
+        <amqp:outbound-endpoint queueName="${rabbit.responsequeue}" responseTimeout="10000" connector-ref="OutboundAMQPConnector" doc:name="Publish response"/>
     </flow>
 </mule>

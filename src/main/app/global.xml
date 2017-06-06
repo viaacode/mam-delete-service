@@ -19,6 +19,5 @@ http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/htt
         <http:basic-authentication username="${rabbit.username}" password="${rabbit.password}" preemptive="true"/>
     </http:request-config>
     <http:request-config name="HTTP_Request_Configuration" protocol="HTTPS" host="${mh.host}" port="${mh.port}" basePath="${mh.basepath}" doc:name="HTTP Request Configuration">
-        <http:basic-authentication username="${mh.username}" password="${mh.password}" preemptive="true"/>
     </http:request-config>
 </mule>

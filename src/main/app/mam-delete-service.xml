@@ -41,6 +41,7 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
     <flow name="parseMessageFlow" processingStrategy="synchronous">
         <json:json-to-object-transformer returnClass="java.util.HashMap" doc:name="JSON to Object"/>
         <set-variable variableName="originalMessage" value="#[payload]" doc:name="Set originalMessage"/>
+        <set-variable variableName="type" value="request" doc:name="Set type"/>
         <flow-ref name="esPost" doc:name="esPost"/>
         <set-payload value="#[flowVars.originalMessage]" doc:name="Set Payload"/>
         <logger message="Received request: #[payload]" level="INFO" doc:name="Logger"/>
@@ -91,6 +92,7 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
 }]]></dw:set-payload>
         </dw:transform-message>
         <byte-array-to-string-transformer doc:name="Byte Array to String"/>
+        <set-variable variableName="type" value="response" doc:name="Set type"/>
         <scatter-gather doc:name="Scatter-Gather">
             <amqp:outbound-endpoint queueName="${rabbit.responsequeue}" responseTimeout="10000" connector-ref="OutboundAMQPConnector" doc:name="Publish response"/>
             <flow-ref name="esPost" doc:name="esPost"/>
@@ -106,7 +108,8 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
 ---
 {
 	(payload mapObject {'$$':$}),
-	timestamp: now
+	timestamp: now,
+	type: flowVars.type
 }]]></dw:set-payload>
         </dw:transform-message>
         <byte-array-to-string-transformer doc:name="Byte Array to String"/>

@@ -40,6 +40,9 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
     </flow>
     <flow name="parseMessageFlow" processingStrategy="synchronous">
         <json:json-to-object-transformer returnClass="java.util.HashMap" doc:name="JSON to Object"/>
+        <set-variable variableName="originalMessage" value="#[payload]" doc:name="Set originalMessage"/>
+        <flow-ref name="esPost" doc:name="esPost"/>
+        <set-payload value="#[flowVars.originalMessage]" doc:name="Set Payload"/>
         <logger message="Received request: #[payload]" level="INFO" doc:name="Logger"/>
         <set-variable variableName="correlation_id" value="#[payload.correlation_id]" doc:name="Set correlation_id"/>
         <set-variable variableName="fragment_id" value="#[payload.fragment_id]" doc:name="Set fragment_id"/>
@@ -55,7 +58,7 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
     <sub-flow name="deleteCallFlow">
         <set-variable variableName="basic_credentials" value="#[&quot;viaa@&quot; + flowVars.cp + ':' + '${mh.password}']" doc:name="Set basic_credentials"/>
         <until-successful maxRetries="5" millisBetweenRetries="5000" failureExpression="#[message.inboundProperties.'http.status' == 200]" synchronous="true" doc:name="Until Successful">
-            <http:request config-ref="HTTP_Request_Configuration" path="/#[flowVars.fragment_id]" method="DELETE" doc:name="HTTP">
+            <http:request config-ref="MediahavenAPI" path="/#[flowVars.fragment_id]" method="DELETE" doc:name="HTTP">
                 <http:request-builder>
                     <http:header headerName="Authorization" value="#['Basic ' + org.apache.commons.codec.binary.Base64.encodeBase64String(flowVars.basic_credentials.getBytes())]"/>
                 </http:request-builder>
@@ -87,6 +90,26 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
 	message: flowVars.message when flowVars.message? otherwise ''
 }]]></dw:set-payload>
         </dw:transform-message>
-        <amqp:outbound-endpoint queueName="${rabbit.responsequeue}" responseTimeout="10000" connector-ref="OutboundAMQPConnector" doc:name="Publish response"/>
+        <byte-array-to-string-transformer doc:name="Byte Array to String"/>
+        <scatter-gather doc:name="Scatter-Gather">
+            <amqp:outbound-endpoint queueName="${rabbit.responsequeue}" responseTimeout="10000" connector-ref="OutboundAMQPConnector" doc:name="Publish response"/>
+            <flow-ref name="esPost" doc:name="esPost"/>
+        </scatter-gather>
+        <set-payload value="#[&quot;&quot;]" doc:name="Set Payload"/>
     </flow>
+    <sub-flow name="esPost">
+        <json:object-to-json-transformer doc:name="Object to JSON"/>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:input-payload doc:sample="sample_data/json.json"/>
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{
+	(payload mapObject {'$$':$}),
+	timestamp: now
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <byte-array-to-string-transformer doc:name="Byte Array to String"/>
+        <http:request config-ref="ES" path="/${es.index}/debug" method="POST" doc:name="POST to ES"/>
+    </sub-flow>
 </mule>

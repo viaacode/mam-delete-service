@@ -58,7 +58,7 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
     </flow>
     <sub-flow name="deleteCallFlow">
         <set-variable variableName="basic_credentials" value="#[&quot;viaa@&quot; + flowVars.cp + ':' + '${mh.password}']" doc:name="Set basic_credentials"/>
-        <until-successful maxRetries="5" millisBetweenRetries="5000" failureExpression="#[message.inboundProperties.'http.status' == 200]" synchronous="true" doc:name="Until Successful">
+        <until-successful maxRetries="50" millisBetweenRetries="1000" failureExpression="#[message.inboundProperties.'http.status' == 200]" synchronous="true" doc:name="Until Successful">
             <http:request config-ref="MediahavenAPI" path="/#[flowVars.fragment_id]" method="DELETE" doc:name="HTTP">
                 <http:request-builder>
                     <http:header headerName="Authorization" value="#['Basic ' + org.apache.commons.codec.binary.Base64.encodeBase64String(flowVars.basic_credentials.getBytes())]"/>

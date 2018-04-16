@@ -17,7 +17,7 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
         	queueDurable="true"
         	responseTimeout="10000"
         	connector-ref="InboundAMQPConnector"
-        	doc:name="AMQP-0-9" numberOfChannels="1"/>
+        	doc:name="AMQP-0-9" numberOfChannels="5"/>
         <flow-ref name="parseMessageFlow" doc:name="parseMessageFlow"/>
         <flow-ref name="deleteCallFlow" doc:name="deleteCallFlow"/>
         <set-variable variableName="outcome" value="success" doc:name="Set outcome"/>
@@ -32,7 +32,7 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
                 <amqp:acknowledge-message doc:name="AMQP-0-9 Acknowledge Message"/>
             </catch-exception-strategy>
             <catch-exception-strategy when="#[exception.causedBy(org.mule.api.routing.RoutingException)]" doc:name="Catch Exception Strategy">
-                <set-variable variableName="message" value="Failed to delete fragment" doc:name="Set message"/>
+                <set-variable variableName="message" value="Failed to delete fragment - #[exception.cause.toString()]" doc:name="Set message"/>
                 <flow-ref name="publishResponse" doc:name="publishResponse"/>
                 <amqp:acknowledge-message doc:name="AMQP-0-9 Acknowledge Message"/>
             </catch-exception-strategy>
@@ -58,8 +58,18 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
     </flow>
     <sub-flow name="deleteCallFlow">
         <set-variable variableName="basic_credentials" value="#[&quot;viaa@&quot; + flowVars.cp + ':' + '${mh.password}']" doc:name="Set basic_credentials"/>
-        <until-successful maxRetries="50" millisBetweenRetries="1000" failureExpression="#[message.inboundProperties.'http.status' == 200]" synchronous="true" doc:name="Until Successful">
+        <until-successful maxRetries="10" millisBetweenRetries="1000" failureExpression="#[message.inboundProperties.'http.status' != 204 &amp;&amp; message.inboundProperties.'http.status' != 404]" synchronous="true" doc:name="Until Successful">
             <http:request config-ref="MediahavenAPI" path="/#[flowVars.fragment_id]" method="DELETE" doc:name="HTTP" doc:description="Send DELETE requests until a 404 is returned.
+The first time, a 204 (No Content) is returned but we want to be sure the asset is actually deleted. Once the asset is really gone, a 404 will be returned and the delete was succesful.">
+                <http:request-builder>
+                    <http:header headerName="Authorization" value="#['Basic ' + org.apache.commons.codec.binary.Base64.encodeBase64String(flowVars.basic_credentials.getBytes())]"/>
+                </http:request-builder>
+                <http:success-status-code-validator values="404,204"/>
+            </http:request>
+        </until-successful>
+        <logger message="Delete was sent for #[flowVars.fragment_id]" level="INFO" doc:name="Logger"/>
+        <until-successful maxRetries="30" doc:name="Until Successful" millisBetweenRetries="5000" synchronous="true">
+            <http:request config-ref="MediahavenAPI" path="/#[flowVars.fragment_id]" method="GET" doc:name="HTTP" doc:description="Send DELETE requests until a 404 is returned.
 The first time, a 204 (No Content) is returned but we want to be sure the asset is actually deleted. Once the asset is really gone, a 404 will be returned and the delete was succesful.">
                 <http:request-builder>
                     <http:header headerName="Authorization" value="#['Basic ' + org.apache.commons.codec.binary.Base64.encodeBase64String(flowVars.basic_credentials.getBytes())]"/>

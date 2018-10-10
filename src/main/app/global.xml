@@ -8,7 +8,13 @@ http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/cor
 http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-current.xsd
 http://www.mulesoft.org/schema/mule/amqp http://www.mulesoft.org/schema/mule/amqp/current/mule-amqp.xsd
 http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
-    <context:property-placeholder location="${mule.env}.properties"/>
+<!--     <context:property-placeholder location="${mule.env}.properties"/> -->
+<context:property-placeholder properties-ref="YamlPropertiesFactoryBean" />
+<spring:beans>
+  <spring:bean id="YamlPropertiesFactoryBean" name="YamlPropertiesFactoryBean" class="org.springframework.beans.factory.config.YamlPropertiesFactoryBean">
+    <spring:property name="resources" value="${mule.env}.yml" />
+  </spring:bean>
+</spring:beans>
     <amqp:connector name="InboundAMQPConnector" validateConnections="true" host="${rabbit.host}" port="${rabbit.port}" virtualHost="${rabbit.vhost}" username="${rabbit.username}" password="${rabbit.password}" ackMode="MANUAL" prefetchCount="1" numberOfChannels="1" doc:name="AMQP-0-9 Connector">
         <reconnect frequency="30000" count="50"/>
     </amqp:connector>
